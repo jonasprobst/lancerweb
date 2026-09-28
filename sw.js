@@ -1,5 +1,5 @@
-// Offline support: serve from cache, refresh the cache in the background.
-const CACHE = 'bulkhead-v1';
+// Offline support: always try the network, fall back to the cached copy.
+const CACHE = 'bulkhead-v2';
 const FILES = [
   './', 'index.html', 'style.css', 'manifest.webmanifest',
   'icons/icon.svg', 'icons/icon-192.png', 'icons/icon-512.png',
@@ -21,13 +21,11 @@ self.addEventListener('activate', (e) => {
 
 self.addEventListener('fetch', (e) => {
   if (e.request.method !== 'GET') return;
+  // Network first so new versions show up right away; cache only when offline.
   e.respondWith(
-    caches.open(CACHE).then(async (c) => {
-      const cached = await c.match(e.request, { ignoreSearch: true });
-      const fresh = fetch(e.request)
+    caches.open(CACHE).then((c) =>
+      fetch(e.request)
         .then((r) => { if (r.ok) c.put(e.request, r.clone()); return r; })
-        .catch(() => cached);
-      return cached || fresh;
-    }),
+        .catch(() => c.match(e.request, { ignoreSearch: true }))),
   );
 });
