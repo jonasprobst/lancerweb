@@ -10,9 +10,8 @@ and can be added to your home screen.
 
 ## Play it
 
-- **On GitHub Pages:** in the repo settings, open **Pages** and set **Source** to
-  **GitHub Actions**. Every push to `main` then tests and deploys the game. Open the URL on
-  your phone and use **Share → Add to Home Screen**.
+- **On GitHub Pages:** https://jonasprobst.github.io/lancerweb/ (Pages deploys the `main`
+  branch automatically). Open it on your phone and use **Share → Add to Home Screen**.
 - **Locally:** run `npm start` (or any static server) and open http://localhost:8080.
 
 ## What's in it

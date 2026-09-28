@@ -1,0 +1,20 @@
+name: Tests
+
+# GitHub Pages deploys the site straight from the main branch;
+# this workflow only runs the rules tests on every push.
+on:
+  push:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - run: npm test
