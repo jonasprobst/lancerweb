@@ -4,7 +4,7 @@ import { makeRng } from '../js/rng.js';
 import { distance, line, offsetToAxial, axialToOffset } from '../js/hex.js';
 import {
   makeState, makePlayer, makeNpc, reachable, hitChance, dealDamage, addHeat, coverFor,
-  attackMods, canQuick, canFull, spendQuick, spendFull, startPlayerTurn, overcharge, key,
+  attackMods, canQuick, canFull, spendQuick, spendFull, startPlayerTurn, overcharge, key, fireWeapon,
 } from '../js/engine.js';
 import { MECH, PLAYER_WEAPONS } from '../js/data.js';
 import { generateMission, budgetFor } from '../js/missions.js';
@@ -130,6 +130,22 @@ test('action economy: no repeats without overcharge, full needs both actions', a
   startPlayerTurn(s, io);
   spendFull(s, 'barrage');
   assert.ok(!canQuick(s, 'boost'));
+});
+
+test('each thermal pistol hits only its own target', async () => {
+  const p = makePlayer(at(3, 8));
+  const a = makeNpc('grunt', at(3, 6));
+  const b = makeNpc('grunt', at(3, 5)); // directly behind a
+  const c = makeNpc('grunt', at(5, 7));
+  const s = makeState({ rng: makeRng(9), units: [p, a, b, c] });
+  a.evasion = b.evasion = c.evasion = 1; // guarantee hits
+  await fireWeapon(s, io, 'pistols', a);
+  assert.equal(a.destroyed, true);
+  assert.equal(b.destroyed, false, 'first pistol must not pass through');
+  await fireWeapon(s, io, 'pistols', c, { aux: true });
+  assert.equal(c.destroyed, true);
+  assert.equal(b.destroyed, false);
+  assert.equal(PLAYER_WEAPONS.pistols.range, 5);
 });
 
 test('missions get harder', () => {

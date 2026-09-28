@@ -2,7 +2,7 @@
 // Anything that needs a player decision goes through `io.ask`, and every
 // visible event goes through `io.log`, so the same engine runs in the
 // browser and in node tests.
-import { key, fromKey, neighbors, distance, same, line, ray, axialToOffset } from './hex.js';
+import { key, fromKey, neighbors, distance, same, line, axialToOffset } from './hex.js';
 import { MECH, PILOT, PLAYER_WEAPONS, NPC_CLASSES, QUIPS } from './data.js';
 
 export const OVERCHARGE_HEAT = [1, '1d3', '1d6', '1d6+4'];
@@ -571,28 +571,17 @@ export function weaponAvailable(u, id) {
 export function weaponTargets(s, id) {
   const u = player(s);
   const w = PLAYER_WEAPONS[id];
-  const reach = w.threat === 1 && w.type === 'Melee' ? 1 : (w.range || w.line);
+  const reach = w.type === 'Melee' ? w.threat : w.range;
   return enemies(s).filter((e) => distance(u.pos, e.pos) <= reach);
 }
 
-// Everything the pistols' Line 5 would hit when aimed at `target`.
-export function lineTargets(s, target) {
-  const u = player(s);
-  const hexes = ray(u.pos, target.pos, 5).map(key);
-  return enemies(s).filter((e) => hexes.includes(key(e.pos)));
-}
-
-// Fire a weapon group at a target (player).
-export async function fireWeapon(s, io, id, target) {
+// Fire one weapon at a target (player). For the pistols this is one pistol;
+// pass { aux: true } for the second pistol's free Aux shot.
+export async function fireWeapon(s, io, id, target, { aux = false } = {}) {
   const u = player(s);
   const w = PLAYER_WEAPONS[id];
   if (id === 'pistols') {
-    const targets = lineTargets(s, target);
-    if (!targets.some((t) => t.id === target.id)) targets.unshift(target);
-    for (const [i, label] of ['Thermal Pistol', 'Thermal Pistol (Aux)'].entries()) {
-      if (i > 0 && !targets.some(alive)) break;
-      for (const t of targets) if (alive(t)) await attack(s, io, u, t, w, { label });
-    }
+    await attack(s, io, u, target, w, { label: aux ? 'Thermal Pistol (Aux)' : 'Thermal Pistol' });
     return;
   }
   const res = await attack(s, io, u, target, w);

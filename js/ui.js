@@ -3,7 +3,7 @@ import { key, fromKey, toPixel, offsetToAxial, distance, neighbors, ray } from '
 import { makeRng } from './rng.js';
 import {
   player, enemies, alive, has, reachable, moveAlong, startPlayerTurn, endPlayerTurn,
-  canQuick, canFull, spendQuick, spendFull, weaponTargets, weaponAvailable, lineTargets,
+  canQuick, canFull, spendQuick, spendFull, weaponTargets, weaponAvailable,
   fireWeapon, attackPreview, throwGrenade, placeMine, overcharge, useInitiative, activateCore,
   projectShield, stabilize, checkObjective, inBounds, passable, OVERCHARGE_HEAT, inZone,
 } from './engine.js';
@@ -272,7 +272,6 @@ function highlight() {
     for (const t of weaponTargets(s, ui.weapon)) h.target.add(key(t.pos));
     if (ui.pending) {
       h.pick.add(key(ui.pending.pos));
-      if (ui.weapon === 'pistols') for (const x of ray(p.pos, ui.pending.pos, 5)) if (inBounds(s, x)) h.aoe.add(key(x));
     }
   }
   if (ui.mode === 'grenade') {
@@ -466,18 +465,15 @@ function renderPanel() {
       ui.barrage && ui.barrage.used.length ? btn('barrage-done', 'Finish Barrage', '', true) : btn('cancel', 'Cancel', '', true)}`;
   } else if (ui.mode === 'target') {
     const w = PLAYER_WEAPONS[ui.weapon];
+    const label = ui.weapon === 'pistols' ? (ui.aux ? 'Second Thermal Pistol (Aux)' : 'First Thermal Pistol') : w.name;
+    const back = ui.aux ? btn('skip-aux', 'Skip', '', true) : btn('back-weapons', 'Back', '', true);
     if (!ui.pending) {
-      html = `<div class="hint">${esc(w.name)}: tap a red hex to target.</div>${btn('back-weapons', 'Back', '', true)}`;
+      html = `<div class="hint">${esc(label)}: tap a red hex to target.</div>${back}`;
     } else {
-      const targets = ui.weapon === 'pistols' ? lineTargets(s, ui.pending) : [ui.pending];
-      if (!targets.some((x) => x.id === ui.pending.id)) targets.unshift(ui.pending);
-      const lines = targets.map((tg) => {
-        const pv = attackPreview(s, p, tg, w);
-        const mods = [...pv.acc.map(([n, v]) => `+${v} ${n}`), ...pv.diff.map(([n, v]) => `−${v} ${n}`)];
-        return `<b>${esc(tg.short)}</b>: ${pct(pv.chance)} to hit (needs ${pv.evasion}${mods.length ? `; ${mods.join(', ')}` : ''})`;
-      });
-      html = `<div class="preview">${esc(w.name)} · ${esc(w.note)}<br>${lines.join('<br>')}${ui.weapon === 'pistols' ? '<br><span class="muted">Both pistols fire at everything on the line.</span>' : ''}</div>
-        <div class="grid two">${btn('fire', 'Fire', '', true, 'primary')}${btn('back-weapons', 'Back', '', true)}</div>`;
+      const pv = attackPreview(s, p, ui.pending, w);
+      const mods = [...pv.acc.map(([n, v]) => `+${v} ${n}`), ...pv.diff.map(([n, v]) => `−${v} ${n}`)];
+      html = `<div class="preview">${esc(label)} · ${esc(w.note)}<br><b>${esc(ui.pending.short)}</b>: ${pct(pv.chance)} to hit (needs ${pv.evasion}${mods.length ? `; ${mods.join(', ')}` : ''})</div>
+        <div class="grid two">${btn('fire', 'Fire', '', true, 'primary')}${back}</div>`;
     }
   } else if (ui.mode === 'hexmenu') {
     html = `<div class="hint">Pattern-B HEX Charges (${p.charges} left)</div><div class="grid two">
@@ -520,13 +516,24 @@ function renderPanel() {
   el.onclick = onPanel;
 }
 
+// What comes after a weapon has fired: the next Barrage weapon, or back to idle.
+function afterShot() {
+  const p = player(s);
+  ui.aux = false;
+  ui.pending = null;
+  const more = ui.action === 'barrage' && ui.barrage && ui.barrage.used.length < 2 &&
+    ['shotgun', 'pistols', 'blade'].some((w) => !ui.barrage.used.includes(w) && weaponAvailable(p, w) && weaponTargets(s, w).length);
+  ui.mode = more ? 'weapons' : 'idle';
+  if (!more) ui.barrage = null;
+}
+
 function hitLine(u) {
   const p = player(s);
   const parts = [];
   for (const id of ['shotgun', 'pistols', 'blade']) {
     if (!weaponAvailable(p, id)) continue;
     const w = PLAYER_WEAPONS[id];
-    const reach = id === 'blade' ? 1 : (w.range || w.line);
+    const reach = w.type === 'Melee' ? w.threat : w.range;
     const d = distance(p.pos, u.pos);
     parts.push(`${w.short} ${d <= reach ? pct(attackPreview(s, p, u, w).chance) : 'out of range'}`);
   }
@@ -571,22 +578,33 @@ function onPanel(e) {
     case 'barrage-done':
       ui = { mode: 'idle', busy: false };
       return render();
+    case 'skip-aux':
+      afterShot();
+      return render();
     case 'fire': {
       const target = ui.pending;
       const id = ui.weapon;
+      const aux = !!ui.aux;
       return run(async () => {
-        if (ui.action === 'barrage') {
-          if (!ui.barrage.used.length) spendFull(s, 'barrage');
-          ui.barrage.used.push(id);
-        } else {
-          spendQuick(s, 'skirmish');
+        if (!aux) {
+          if (ui.action === 'barrage') {
+            if (!ui.barrage.used.length) spendFull(s, 'barrage');
+            ui.barrage.used.push(id);
+          } else {
+            spendQuick(s, 'skirmish');
+          }
         }
-        await fireWeapon(s, io, id, target);
+        await fireWeapon(s, io, id, target, { aux });
         ui.pending = null;
-        const more = ui.action === 'barrage' && ui.barrage.used.length < 2 &&
-          ['shotgun', 'pistols', 'blade'].some((w) => !ui.barrage.used.includes(w) && weaponAvailable(p, w) && weaponTargets(s, w).length);
-        ui.mode = more ? 'weapons' : 'idle';
-        if (!more) ui.barrage = null;
+        // After the first pistol, the second (Aux) pistol picks its own target.
+        if (id === 'pistols' && !aux && !s.over && weaponTargets(s, id).length) {
+          ui.aux = true;
+          ui.mode = 'target';
+          const ts = weaponTargets(s, id);
+          if (ts.length === 1) ui.pending = ts[0];
+          return;
+        }
+        afterShot();
       });
     }
     case 'hex':

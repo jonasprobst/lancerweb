@@ -39,6 +39,10 @@ async function shoot(s, io, id) {
   if (!ts.length) return false;
   ts.sort((a, b) => a.hp - b.hp);
   await fireWeapon(s, io, id, ts[0]);
+  if (id === 'pistols' && !s.over) {
+    const next = weaponTargets(s, id).sort((a, b) => a.hp - b.hp)[0];
+    if (next) await fireWeapon(s, io, id, next, { aux: true });
+  }
   return true;
 }
 

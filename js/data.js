@@ -36,8 +36,8 @@ export const MECH = {
   ],
 };
 
-// Weapon "groups" as the player uses them. The two Aux thermal pistols share
-// the Flex mount and always fire together (primary + the free Aux shot).
+// Weapons by mount. The two Aux thermal pistols share the Flex mount: picking
+// it fires the first pistol, then the second (Aux) pistol at a target of your choice.
 export const PLAYER_WEAPONS = {
   shotgun: {
     id: 'shotgun', name: 'Shotgun', short: 'Shotgun', mount: 'main', size: 'Main', type: 'CQB',
@@ -46,8 +46,8 @@ export const PLAYER_WEAPONS = {
   },
   pistols: {
     id: 'pistols', name: 'Thermal Pistols ×2', short: 'Pistols', mount: 'flex', size: 'Auxiliary', type: 'CQB',
-    line: 5, shots: 2, damage: 2, dtype: 'Energy',
-    note: 'Aux CQB ×2 · Line 5 · 2 energy each — hits everything on the line',
+    range: 5, damage: 2, dtype: 'Energy',
+    note: 'Aux CQB ×2 · Range 5 · 2 energy each · each pistol picks its own target',
   },
   blade: {
     id: 'blade', name: 'Heavy Charged Blade', short: 'Blade', mount: 'heavy', size: 'Heavy', type: 'Melee',
